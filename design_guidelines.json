@@ -1,0 +1,197 @@
+{
+  "theme_and_archetype": {
+    "domain": "Messaging, Privacy, Crypto-native",
+    "theme": "DARK",
+    "archetype": "7 (Electric & Neon)",
+    "reasoning": "The app is a privacy-first, crypto-native messenger. Using Archetype 7 provides the deep void blacks (Obsidian) grounded with sharp, high-contrast neon accents (Acid Green / Electric Cyan) to denote security states and premium tech interactions, fulfilling the 'crypto-native meets BBM nostalgia' requirement."
+  },
+  "colors": {
+    "modes": {
+      "obsidian": {
+        "background": "#030303",
+        "surface": "#121212",
+        "surface_elevated": "#1A1A1A",
+        "border": "#27272A",
+        "primary_accent": "#00E5FF",
+        "secure_accent": "#39FF14",
+        "danger": "#FF2A2A",
+        "text_primary": "#FFFFFF",
+        "text_secondary": "#A1A1AA",
+        "text_muted": "#52525B"
+      },
+      "frost": {
+        "background": "#F4F4F5",
+        "surface": "#FFFFFF",
+        "surface_elevated": "#E4E4E7",
+        "border": "#D4D4D8",
+        "primary_accent": "#00B8D4",
+        "secure_accent": "#00C853",
+        "danger": "#E53935",
+        "text_primary": "#09090B",
+        "text_secondary": "#52525B",
+        "text_muted": "#A1A1AA"
+      },
+      "amber_vault": {
+        "background": "#0A0800",
+        "surface": "#1A1400",
+        "surface_elevated": "#292000",
+        "border": "#4D3C00",
+        "primary_accent": "#FFB300",
+        "secure_accent": "#FFD54F",
+        "danger": "#FF3B30",
+        "text_primary": "#FFFDF5",
+        "text_secondary": "#BFA75D",
+        "text_muted": "#736436"
+      },
+      "nebula": {
+        "background": "#050014",
+        "surface": "#130030",
+        "surface_elevated": "#26005E",
+        "border": "#3B008F",
+        "primary_accent": "#D946EF",
+        "secure_accent": "#2DD4BF",
+        "danger": "#F43F5E",
+        "text_primary": "#FFFFFF",
+        "text_secondary": "#C4B5FD",
+        "text_muted": "#7C3AED"
+      }
+    },
+    "rules": [
+      "Obsidian is the default theme.",
+      "Use 'secure_accent' (Acid Green) exclusively for encryption locks, session verification, and verified identities.",
+      "Use 'primary_accent' (Electric Cyan) for general CTAs, unread badges, and active tab indicators.",
+      "Avoid pure #000000; use #030303 as the deep void base to allow subtle shadows and glows."
+    ]
+  },
+  "typography": {
+    "fonts": {
+      "heading": "Outfit",
+      "body": "Manrope",
+      "mono": "JetBrains Mono"
+    },
+    "scales": {
+      "h1": "text-4xl font-bold tracking-tight",
+      "h2": "text-2xl font-bold tracking-tight",
+      "h3": "text-xl font-semibold tracking-tight",
+      "body_lg": "text-lg font-medium leading-relaxed",
+      "body_base": "text-base font-normal leading-relaxed",
+      "body_sm": "text-sm font-medium",
+      "xid_badge": "text-xs font-mono tracking-[0.2em] uppercase",
+      "fingerprint": "text-[10px] font-mono tracking-widest leading-loose text-secondary"
+    },
+    "rules": [
+      "Always use JetBrains Mono for Xenon IDs (e.g., XEN-1A2B-3C4D), encryption fingerprints, and timers.",
+      "Headings must have tight letter spacing.",
+      "Use 'text_secondary' for timestamps and message previews to maintain hierarchy."
+    ]
+  },
+  "spacing_and_layout": {
+    "grid": "8pt system",
+    "padding": {
+      "screen": "p-4 md:p-6",
+      "card": "p-4",
+      "bubble": "px-4 py-2.5",
+      "list_item": "py-3 px-4"
+    },
+    "border_radius": {
+      "avatar": "rounded-xl",
+      "bubble": "rounded-2xl",
+      "panel": "rounded-t-3xl",
+      "badge": "rounded-md"
+    },
+    "rules": [
+      "BBM Nostalgia layout: Use slightly squared-off avatars (rounded-xl instead of full-circle) for a tactical, premium feel.",
+      "Maintain a strict 8pt grid. Gaps should be gap-2 (8px), gap-4 (16px), or gap-6 (24px).",
+      "Containers with borders must use 1px solid strokes (e.g., border-border) rather than heavy drop shadows."
+    ]
+  },
+  "components": {
+    "ChatBubble": {
+      "user": "bg-surface border border-primary_accent/30 rounded-2xl rounded-tr-sm",
+      "peer": "bg-surface_elevated border border-border rounded-2xl rounded-tl-sm",
+      "text": "text-body_base",
+      "meta": "text-[10px] text-text_muted font-mono mt-1 flex items-center justify-end gap-1"
+    },
+    "ChatListItem": {
+      "container": "flex flex-row items-center gap-4 py-3 border-b border-border/50 bg-background",
+      "avatar": "w-12 h-12 rounded-xl bg-surface_elevated border border-border relative",
+      "content": "flex-1 flex flex-col gap-0.5",
+      "title_row": "flex flex-row justify-between items-center",
+      "preview_row": "flex flex-row items-center gap-1.5",
+      "unread_badge": "w-5 h-5 rounded-full bg-primary_accent text-background text-xs font-bold flex items-center justify-center"
+    },
+    "SecurityPanel": {
+      "container": "bg-surface border-t border-border p-6 rounded-t-3xl shadow-[0_-8px_32px_rgba(0,229,255,0.05)]",
+      "qr_container": "p-4 bg-background border border-secure_accent/20 rounded-xl items-center justify-center",
+      "fingerprint_text": "font-mono text-secure_accent text-center break-all"
+    },
+    "IdentitySwitcher": {
+      "container": "flex flex-row items-center justify-between p-4 bg-surface border-b border-border",
+      "xid_display": "flex flex-row items-center gap-2",
+      "status_dot": "w-2 h-2 rounded-full bg-secure_accent shadow-[0_0_8px_rgba(57,255,20,0.5)]"
+    },
+    "AdvancedModes": {
+      "ghost_mode": "text-text_secondary opacity-70 italic",
+      "burn_mode": "border-danger/50 text-danger",
+      "vault_mode": "border-amber_vault text-amber_vault"
+    },
+    "AIChips": {
+      "container": "flex flex-row gap-2 overflow-x-auto py-2",
+      "chip": "px-3 py-1.5 rounded-full border border-primary_accent/40 bg-primary_accent/10 text-primary_accent text-sm font-medium flex flex-row items-center gap-1"
+    }
+  },
+  "motion_and_interactions": {
+    "rules": [
+      "Use smooth spring animations for the slide-up Security Panel and Identity Switcher.",
+      "Lock icons should have a subtle pulse animation (opacity 0.6 to 1) when connected securely.",
+      "Self-destruct timers should visually tick down with a monospace font and a shrinking border or progress ring.",
+      "Active pressed states on lists should scale down slightly (scale: 0.98) and darken the background."
+    ]
+  },
+  "icons": {
+    "library": "lucide-react-native",
+    "usage": [
+      "Lock: Always present next to peer names to denote E2E encryption.",
+      "Fingerprint: For session verification panel.",
+      "Ghost: For Ghost mode toggle.",
+      "Flame: For Burn mode / Self-destruct.",
+      "ShieldAlert: For Panic mode."
+    ]
+  },
+  "media": {
+    "avatars": [
+      {
+        "url": "https://images.unsplash.com/photo-1589128560340-b66ae74e4fc4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwzfHxjeWJlcnB1bmslMjBoYWNrZXIlMjBhdmF0YXJ8ZW58MHx8fHwxNzc2NDEyMDUxfDA&ixlib=rb-4.1.0&q=85",
+        "description": "User Avatar 1",
+        "category": "peer_avatar"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1646773777979-8242c6ee91c7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwyfHxjeWJlcnB1bmslMjBoYWNrZXIlMjBhdmF0YXJ8ZW58MHx8fHwxNzc2NDEyMDUxfDA&ixlib=rb-4.1.0&q=85",
+        "description": "User Avatar 2",
+        "category": "peer_avatar"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1580046939256-c377c5b099f1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwxfHxjeWJlcnB1bmslMjBoYWNrZXIlMjBhdmF0YXJ8ZW58MHx8fHwxNzc2NDEyMDUxfDA&ixlib=rb-4.1.0&q=85",
+        "description": "Current User Avatar",
+        "category": "user_avatar"
+      }
+    ]
+  },
+  "testing": {
+    "rules": [
+      "All interactive elements (buttons, toggles, list items) MUST include a data-testid attribute.",
+      "Format: kebab-case, role-based. Examples: 'chat-list-item-user1', 'send-message-button', 'security-panel-toggle', 'identity-switcher-button'."
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Build the Expo React Native app using NativeWind (Tailwind for React Native) or StyleSheet matching the provided color hexes and classes.",
+    "Implement the Chat List screen as the initial view, with the Identity Switcher locked to the top.",
+    "The Chat Screen must feature a clear header showing the peer's XID, encryption status (green lock), and avatar.",
+    "Implement a slide-up modal (Security Panel) accessible from the chat header, displaying a mock QR code and monospace session fingerprint.",
+    "Simulate E2E functionality in the UI: monospace timers for burn mode, lock icons, and a secure feel.",
+    "Ensure 'Ghost Mode' visibly changes the UI (e.g., italicizes text, dims the read receipt indicators).",
+    "Use lucide-react-native for all iconography.",
+    "Follow the theme variables strictly. Obsidian is the default. You can mock the theme switcher in Settings.",
+    "Add 'data-testid' to all interactable UI elements for testing."
+  ]
+}
