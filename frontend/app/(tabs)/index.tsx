@@ -315,7 +315,7 @@ export default function ChatListScreen() {
           styles.fab,
           {
             backgroundColor: colors.primary_accent,
-            shadowColor: colors.primary_accent,
+            boxShadow: `0 4px 16px ${colors.primary_accent}66`,
           },
         ]}
         activeOpacity={0.85}
@@ -379,9 +379,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
 });

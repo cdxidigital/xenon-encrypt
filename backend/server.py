@@ -223,11 +223,15 @@ async def verify_contact(contact_id: str):
 # Chats
 @api_router.post("/chats", response_model=Chat)
 async def create_chat(req: CreateChatRequest):
-    # For direct chats, ensure both participants exist
-    for p in req.participant_xids:
-        ident = await db.identities.find_one({"xid": p}, {"_id": 0})
-        if not ident:
-            raise HTTPException(status_code=404, detail=f"Participant {p} not found")
+    # Batch-validate all participants in a single query
+    if req.participant_xids:
+        found = await db.identities.find(
+            {"xid": {"$in": req.participant_xids}}, {"_id": 0, "xid": 1}
+        ).to_list(len(req.participant_xids))
+        found_xids = {d["xid"] for d in found}
+        missing = [p for p in req.participant_xids if p not in found_xids]
+        if missing:
+            raise HTTPException(status_code=404, detail=f"Participant {missing[0]} not found")
     # For direct, reuse existing chat
     if req.type == "direct" and len(req.participant_xids) == 2:
         existing = await db.chats.find_one({
@@ -388,13 +392,16 @@ async def panic(req: PanicRequest):
     await db.contacts.delete_many({"$or": [{"owner_xid": req.xid}, {"peer_xid": req.xid}]})
     # For chats where user was, remove user; if direct or only participant, delete
     chats = await db.chats.find({"participant_xids": req.xid}, {"_id": 0}).to_list(500)
+    delete_ids: List[str] = []
     for c in chats:
         remaining = [p for p in c["participant_xids"] if p != req.xid]
         if len(remaining) < 2 or c["type"] == "direct":
-            await db.chats.delete_one({"id": c["id"]})
-            await db.messages.delete_many({"chat_id": c["id"]})
+            delete_ids.append(c["id"])
         else:
             await db.chats.update_one({"id": c["id"]}, {"$set": {"participant_xids": remaining}})
+    if delete_ids:
+        await db.chats.delete_many({"id": {"$in": delete_ids}})
+        await db.messages.delete_many({"chat_id": {"$in": delete_ids}})
     await db.messages.delete_many({"sender_xid": req.xid})
     return {"ok": True, "wiped": True}
 
