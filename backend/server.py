@@ -34,6 +34,17 @@ db = client[os.environ['DB_NAME']]
 app = FastAPI(title="Xenon Messenger Relay")
 api_router = APIRouter(prefix="/api")
 
+
+# Root + health endpoints (required for Kubernetes liveness/readiness probes)
+@app.get("/")
+async def root():
+    return {"service": "Xenon Messenger Relay", "status": "ok"}
+
+
+@app.get("/healthz")
+async def healthz():
+    return {"status": "ok"}
+
 # -------------------- helpers --------------------
 
 def now_iso() -> str:
@@ -153,7 +164,7 @@ class PanicRequest(BaseModel):
 # -------------------- routes --------------------
 
 @api_router.get("/")
-async def root():
+async def api_root():
     return {"service": "Xenon Messenger Relay", "status": "stateless-forwarding", "version": "1.0.0"}
 
 # Identities
@@ -329,23 +340,27 @@ async def list_messages(chat_id: str, since: Optional[str] = None, limit: int = 
     if since:
         query["created_at"] = {"$gt": since}
     docs = await db.messages.find(query, {"_id": 0}).sort("created_at", 1).to_list(limit)
-    # purge self-destructed messages based on age
+    # Identify self-destructed messages and batch-update them
     now = datetime.now(timezone.utc)
-    out: List[Message] = []
+    expired_ids: List[str] = []
     for d in docs:
         sds = d.get("self_destruct_seconds")
         if sds and not d.get("destroyed"):
             try:
                 created = datetime.fromisoformat(d["created_at"])
                 if (now - created).total_seconds() > sds + 2:
-                    await db.messages.update_one({"id": d["id"]}, {"$set": {"destroyed": True, "ciphertext": "", "attachment_data": None}})
+                    expired_ids.append(d["id"])
                     d["destroyed"] = True
                     d["ciphertext"] = ""
                     d["attachment_data"] = None
             except Exception:
                 pass
-        out.append(Message(**d))
-    return out
+    if expired_ids:
+        await db.messages.update_many(
+            {"id": {"$in": expired_ids}},
+            {"$set": {"destroyed": True, "ciphertext": "", "attachment_data": None}},
+        )
+    return [Message(**d) for d in docs]
 
 @api_router.post("/messages/{msg_id}/read")
 async def mark_read(msg_id: str, xid: str):
