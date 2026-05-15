@@ -5,12 +5,12 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
-import random
+import secrets
 import string
 import hashlib
 import asyncio
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List, Optional, Literal
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -52,12 +52,12 @@ def now_iso() -> str:
 
 def gen_xid() -> str:
     alphabet = string.ascii_uppercase + string.digits
-    part1 = ''.join(random.choices(alphabet, k=4))
-    part2 = ''.join(random.choices(alphabet, k=4))
+    part1 = ''.join(secrets.choice(alphabet) for _ in range(4))
+    part2 = ''.join(secrets.choice(alphabet) for _ in range(4))
     return f"XEN-{part1}-{part2}"
 
 def gen_hexkey(n: int = 32) -> str:
-    return ''.join(random.choices('0123456789ABCDEF', k=n))
+    return ''.join(secrets.choice('0123456789ABCDEF') for _ in range(n))
 
 def fingerprint_for(chat_id: str, participants: List[str]) -> str:
     base = '|'.join(sorted(participants)) + '::' + chat_id
@@ -66,13 +66,45 @@ def fingerprint_for(chat_id: str, participants: List[str]) -> str:
     groups = [h[i:i+5] for i in range(0, 40, 5)]
     return ' '.join(groups)
 
+
+
+XID_RE = r"^XEN-[A-Z0-9]{4}-[A-Z0-9]{4}$"
+MAX_CHAT_PARTICIPANTS = 128
+MAX_CIPHERTEXT_BYTES = 64 * 1024
+MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
+MAX_MESSAGE_LIMIT = 500
+
+
+def require_xid(value: str) -> str:
+    import re
+    normalized = value.strip().upper()
+    if not re.fullmatch(XID_RE, normalized):
+        raise ValueError("XID must match XEN-XXXX-XXXX")
+    return normalized
+
+
+def require_non_empty(value: str, field_name: str, max_length: int) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{field_name} cannot be empty")
+    if len(normalized) > max_length:
+        raise ValueError(f"{field_name} must be <= {max_length} characters")
+    return normalized
+
+
+def normalize_xid_param(value: str) -> str:
+    try:
+        return require_xid(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
 # -------------------- models --------------------
 
 class Identity(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     xid: str
     name: str
-    avatar_seed: str = Field(default_factory=lambda: str(random.randint(1, 9999)))
+    avatar_seed: str = Field(default_factory=lambda: str(secrets.randbelow(9999) + 1))
     public_key: str = Field(default_factory=lambda: gen_hexkey(64))
     disposable: bool = False
     created_at: str = Field(default_factory=now_iso)
@@ -80,6 +112,11 @@ class Identity(BaseModel):
 class CreateIdentityRequest(BaseModel):
     name: str
     disposable: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        return require_non_empty(value, "name", 80)
 
 class Contact(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -95,6 +132,22 @@ class AddContactRequest(BaseModel):
     owner_xid: str
     peer_xid: str
     peer_name: Optional[str] = None
+
+    @field_validator("owner_xid", "peer_xid")
+    @classmethod
+    def validate_xids(cls, value: str) -> str:
+        return require_xid(value)
+
+    @field_validator("peer_name")
+    @classmethod
+    def validate_peer_name(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else require_non_empty(value, "peer_name", 80)
+
+    @model_validator(mode="after")
+    def validate_not_self(self):
+        if self.owner_xid == self.peer_xid:
+            raise ValueError("Cannot add yourself as a contact")
+        return self
 
 class Chat(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -117,12 +170,54 @@ class CreateChatRequest(BaseModel):
     participant_xids: List[str]
     created_by_xid: str
 
+    @field_validator("created_by_xid")
+    @classmethod
+    def validate_creator(cls, value: str) -> str:
+        return require_xid(value)
+
+    @field_validator("participant_xids")
+    @classmethod
+    def validate_participants(cls, value: List[str]) -> List[str]:
+        normalized = [require_xid(xid) for xid in value]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("participant_xids cannot contain duplicates")
+        if len(normalized) > MAX_CHAT_PARTICIPANTS:
+            raise ValueError(f"participant_xids cannot exceed {MAX_CHAT_PARTICIPANTS}")
+        return normalized
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else require_non_empty(value, "name", 100)
+
+    @model_validator(mode="after")
+    def validate_shape(self):
+        if self.created_by_xid not in self.participant_xids:
+            raise ValueError("created_by_xid must be included in participant_xids")
+        if self.type == "direct" and len(self.participant_xids) != 2:
+            raise ValueError("direct chats require exactly 2 participants")
+        if self.type in {"group", "broadcast"} and len(self.participant_xids) < 2:
+            raise ValueError(f"{self.type} chats require at least 2 participants")
+        return self
+
 class UpdateChatRequest(BaseModel):
     vault: Optional[bool] = None
     ghost: Optional[bool] = None
     burn_seconds: Optional[int] = None
     decoy: Optional[bool] = None
     name: Optional[str] = None
+
+    @field_validator("burn_seconds")
+    @classmethod
+    def validate_burn_seconds(cls, value: Optional[int]) -> Optional[int]:
+        if value is not None and (value < 1 or value > 604800):
+            raise ValueError("burn_seconds must be between 1 and 604800")
+        return value
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else require_non_empty(value, "name", 100)
 
 class Message(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -147,10 +242,48 @@ class SendMessageRequest(BaseModel):
     attachment_name: Optional[str] = None
     self_destruct_seconds: Optional[int] = None
 
+    @field_validator("sender_xid")
+    @classmethod
+    def validate_sender(cls, value: str) -> str:
+        return require_xid(value)
+
+    @field_validator("ciphertext")
+    @classmethod
+    def validate_ciphertext(cls, value: str) -> str:
+        if not value:
+            raise ValueError("ciphertext cannot be empty")
+        if len(value.encode("utf-8")) > MAX_CIPHERTEXT_BYTES:
+            raise ValueError("ciphertext exceeds maximum size")
+        return value
+
+    @field_validator("attachment_data")
+    @classmethod
+    def validate_attachment_data(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and len(value.encode("utf-8")) > MAX_ATTACHMENT_BYTES:
+            raise ValueError("attachment_data exceeds maximum size")
+        return value
+
+    @field_validator("attachment_name")
+    @classmethod
+    def validate_attachment_name(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else require_non_empty(value, "attachment_name", 160)
+
+    @field_validator("self_destruct_seconds")
+    @classmethod
+    def validate_self_destruct_seconds(cls, value: Optional[int]) -> Optional[int]:
+        if value is not None and (value < 1 or value > 604800):
+            raise ValueError("self_destruct_seconds must be between 1 and 604800")
+        return value
+
 class TypingRequest(BaseModel):
     chat_id: str
     xid: str
     typing: bool
+
+    @field_validator("xid")
+    @classmethod
+    def validate_xid(cls, value: str) -> str:
+        return require_xid(value)
 
 class AISummarizeRequest(BaseModel):
     messages: List[dict]  # [{sender, text}]
@@ -160,6 +293,11 @@ class AISmartReplyRequest(BaseModel):
 
 class PanicRequest(BaseModel):
     xid: str
+
+    @field_validator("xid")
+    @classmethod
+    def validate_xid(cls, value: str) -> str:
+        return require_xid(value)
 
 # -------------------- routes --------------------
 
@@ -175,10 +313,11 @@ async def create_identity(req: CreateIdentityRequest):
         xid = gen_xid()
         existing = await db.identities.find_one({"xid": xid}, {"_id": 0})
         if not existing:
-            break
-    identity = Identity(xid=xid, name=req.name, disposable=req.disposable)
-    await db.identities.insert_one(identity.model_dump())
-    return identity
+            identity = Identity(xid=xid, name=req.name, disposable=req.disposable)
+            await db.identities.insert_one(identity.model_dump())
+            return identity
+    raise HTTPException(status_code=503, detail="Unable to allocate unique XID")
+
 
 @api_router.get("/identities", response_model=List[Identity])
 async def list_identities():
@@ -187,6 +326,7 @@ async def list_identities():
 
 @api_router.get("/identities/{xid}", response_model=Identity)
 async def get_identity(xid: str):
+    xid = normalize_xid_param(xid)
     doc = await db.identities.find_one({"xid": xid}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Identity not found")
@@ -194,6 +334,7 @@ async def get_identity(xid: str):
 
 @api_router.delete("/identities/{xid}")
 async def delete_identity(xid: str):
+    xid = normalize_xid_param(xid)
     await db.identities.delete_one({"xid": xid})
     await db.contacts.delete_many({"$or": [{"owner_xid": xid}, {"peer_xid": xid}]})
     await db.chats.delete_many({"participant_xids": xid})
@@ -203,6 +344,9 @@ async def delete_identity(xid: str):
 # Contacts
 @api_router.post("/contacts", response_model=Contact)
 async def add_contact(req: AddContactRequest):
+    owner = await db.identities.find_one({"xid": req.owner_xid}, {"_id": 0})
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner XID not found")
     peer = await db.identities.find_one({"xid": req.peer_xid}, {"_id": 0})
     if not peer:
         raise HTTPException(status_code=404, detail="Peer XID not found")
@@ -216,13 +360,14 @@ async def add_contact(req: AddContactRequest):
         peer_xid=req.peer_xid,
         peer_name=name,
         fingerprint=fp,
-        trust_score=random.randint(40, 95),
+        trust_score=40 + secrets.randbelow(56),
     )
     await db.contacts.insert_one(contact.model_dump())
     return contact
 
 @api_router.get("/contacts", response_model=List[Contact])
 async def list_contacts(owner_xid: str):
+    owner_xid = normalize_xid_param(owner_xid)
     docs = await db.contacts.find({"owner_xid": owner_xid}, {"_id": 0}).sort("created_at", -1).to_list(500)
     return [Contact(**d) for d in docs]
 
@@ -257,6 +402,7 @@ async def create_chat(req: CreateChatRequest):
 
 @api_router.get("/chats", response_model=List[Chat])
 async def list_chats(xid: str, include_vault: bool = False):
+    xid = normalize_xid_param(xid)
     query = {"participant_xids": xid}
     if not include_vault:
         query["vault"] = False
@@ -302,6 +448,8 @@ async def send_message(req: SendMessageRequest):
     chat = await db.chats.find_one({"id": req.chat_id}, {"_id": 0})
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
+    if req.sender_xid not in chat.get("participant_xids", []):
+        raise HTTPException(status_code=403, detail="Sender is not a chat participant")
     # apply burn_seconds from chat if not provided
     sds = req.self_destruct_seconds
     if sds is None and chat.get("burn_seconds"):
@@ -336,10 +484,11 @@ async def send_message(req: SendMessageRequest):
 
 @api_router.get("/messages", response_model=List[Message])
 async def list_messages(chat_id: str, since: Optional[str] = None, limit: int = 200):
+    bounded_limit = min(max(limit, 1), MAX_MESSAGE_LIMIT)
     query = {"chat_id": chat_id}
     if since:
         query["created_at"] = {"$gt": since}
-    docs = await db.messages.find(query, {"_id": 0}).sort("created_at", 1).to_list(limit)
+    docs = await db.messages.find(query, {"_id": 0}).sort("created_at", 1).to_list(bounded_limit)
     # Identify self-destructed messages and batch-update them
     now = datetime.now(timezone.utc)
     expired_ids: List[str] = []
@@ -364,6 +513,13 @@ async def list_messages(chat_id: str, since: Optional[str] = None, limit: int = 
 
 @api_router.post("/messages/{msg_id}/read")
 async def mark_read(msg_id: str, xid: str):
+    xid = normalize_xid_param(xid)
+    msg = await db.messages.find_one({"id": msg_id}, {"_id": 0})
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    chat = await db.chats.find_one({"id": msg["chat_id"]}, {"_id": 0, "participant_xids": 1})
+    if not chat or xid not in chat.get("participant_xids", []):
+        raise HTTPException(status_code=403, detail="Reader is not a chat participant")
     await db.messages.update_one(
         {"id": msg_id},
         {"$addToSet": {"read_by": xid}},
@@ -383,6 +539,11 @@ _typing_state: dict = {}  # { chat_id: { xid: expires_epoch } }
 
 @api_router.post("/typing")
 async def set_typing(req: TypingRequest):
+    chat = await db.chats.find_one({"id": req.chat_id}, {"_id": 0, "participant_xids": 1})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    if req.xid not in chat.get("participant_xids", []):
+        raise HTTPException(status_code=403, detail="Typer is not a chat participant")
     import time as _t
     state = _typing_state.setdefault(req.chat_id, {})
     if req.typing:
@@ -393,6 +554,8 @@ async def set_typing(req: TypingRequest):
 
 @api_router.get("/typing")
 async def get_typing(chat_id: str, exclude_xid: Optional[str] = None):
+    if exclude_xid is not None:
+        exclude_xid = normalize_xid_param(exclude_xid)
     import time as _t
     state = _typing_state.get(chat_id, {})
     now = _t.time()

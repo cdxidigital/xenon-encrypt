@@ -67,6 +67,7 @@ export default function ContactsScreen() {
   };
 
   const openChat = async (peer_xid: string) => {
+    if (!currentXid) return;
     try {
       const chat = await api.createChat({
         type: 'direct',
