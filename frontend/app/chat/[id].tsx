@@ -43,10 +43,8 @@ export default function ChatScreen() {
   const {
     colors,
     currentXid,
-    currentIdentity,
     ghostMode,
     vaultUnlocked,
-    setVaultUnlocked,
     vaultPin,
   } = useApp();
 

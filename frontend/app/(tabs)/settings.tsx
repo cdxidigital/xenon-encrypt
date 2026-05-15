@@ -15,8 +15,6 @@ import { useRouter } from 'expo-router';
 import {
   Palette,
   Ghost,
-  Flame,
-  Archive,
   ShieldAlert,
   EyeOff,
   KeyRound,

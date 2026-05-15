@@ -53,14 +53,17 @@ export default function NewChat() {
       if (mode === 'direct') {
         next.clear();
         next.add(xid);
+      } else if (next.has(xid)) {
+        next.delete(xid);
       } else {
-        next.has(xid) ? next.delete(xid) : next.add(xid);
+        next.add(xid);
       }
       return next;
     });
   };
 
   const create = async () => {
+    if (!currentXid) return Alert.alert('No active identity');
     if (selected.size === 0) return Alert.alert('Pick at least one contact');
     if ((mode === 'group' || mode === 'broadcast') && !groupName.trim())
       return Alert.alert('Name required', `Give your ${mode} a name.`);
